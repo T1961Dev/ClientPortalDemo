@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import supabaseInit as supabase
 import uuid
@@ -7,10 +7,14 @@ from datetime import datetime
 
 supabaseClient = supabase.supabase
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="../frontend/dist", static_url_path="/")
 
 # Allow CORS for the frontend (localhost:5173)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+@app.route("/")
+def home():
+    return send_from_directory(app.static_folder, "index.html")
 
 @app.route("/loginAdmin", methods=["POST", "OPTIONS"])
 def login_admin():
