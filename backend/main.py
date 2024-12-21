@@ -53,6 +53,64 @@ def login_admin():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Example for a Flask route
+@app.route('/getProjectsByCompany', methods=['GET'])
+def get_projects_by_company():
+    company_name = request.args.get('company_name')
+    if not company_name:
+        return jsonify({'error': 'Company name is required'}), 400
+
+    # Query the projects table where the 'company' column matches the provided company name
+    response = supabaseClient.table('projects').select('*').eq('company', company_name).execute()
+
+    projects = response.data  # This will give you a list of project records
+    project_list = [{'id': project['id'], 'name': project['name']} for project in projects]
+
+    return jsonify({'projects': project_list}), 200
+
+@app.route('/addCompany', methods=['POST'])
+def create_company():
+    try:
+        # Get company name from request body
+        data = request.get_json()
+        company_name = data.get('name')
+
+        # Check if the company name is provided
+        if not company_name:
+            return jsonify({"error": "Company name is required!"}), 400
+
+        # Insert company data into Supabase 'companies' table
+        response = supabaseClient.table('companies').insert({
+            "name": company_name
+        }).execute()
+
+        # Check if the response status is successful
+        if response['status'] != 201:
+            return jsonify({"error": "Failed to add company"}), 500
+
+        # Return the newly created company data
+        return jsonify({"company": response['data'][0]}), 201
+
+    except Exception as e:
+        # Handle exceptions and return error message
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/getProjectById', methods=['GET'])
+def get_project_by_id():
+    project_id = request.args.get('id')
+    if not project_id:
+        return jsonify({'error': 'Project ID is required'}), 400
+
+    # Query the projects table where the 'id' matches the provided project_id
+    response = supabaseClient.table('projects').select('*').eq('id', project_id).execute()
+
+    if not response.data:
+        return jsonify({'error': 'No project found with the given ID'}), 404
+
+    project = response.data[0]  # Assuming the response returns a list of projects
+    return jsonify({'project': project}), 200
+
 
 @app.route("/loginClient", methods=["POST", "OPTIONS"])
 def login_client():
@@ -314,23 +372,62 @@ def add_user():
         return jsonify({'error': 'Email already exists'}), 400
 
     # If email doesn't exist, proceed with adding the new user
+
+    # Sign up the user with Supabase Auth
+    auth_response = supabaseClient.auth.sign_up({"email": email, "password": password})
+    user_sub = auth_response.user.id
+    print(auth_response)
     new_user = {
         'name': username,
         'company': company,
         'email': email,
-        "role": role
+        "role": role,
+        "authId": user_sub
         # No hashing, storing plain text password
     }
-    response = supabaseClient.auth.sign_up({"email": email, "password": password})
-    print(response)
-
     # Insert the new user into the 'users' table
     result = supabaseClient.table('users').insert(new_user).execute()
+    
 
-    if result.status_code == 201:
-        return jsonify({'success': True, 'user': new_user}), 201
+    return jsonify({'success': True, 'user': new_user}), 201
+
+
+@app.route('/addProject', methods=['POST'])
+def add_project():
+    data = request.get_json()
+
+    # Extract project data from the request body
+    project= data.get('project')
+    start_date = data.get('start_date')  # Expecting 'YYYY-MM-DD' format
+    end_date = data.get('end_date')  # Expecting 'YYYY-MM-DD' format
+    description = data.get('description')
+    company = data.get('company')
+
+    # Validate input
+    
+
+    # Parse dates from string
+    try:
+        start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+
+    # Insert the new project into the 'projects' table
+    new_project = {
+        'name': project,
+        'start_date': start_date,
+        'end_date': end_date,
+        'description': description,
+        'company': company,
+    }
+
+    response = supabaseClient.table('projects').insert(new_project).execute()
+
+    if response.status_code == 201:
+        return jsonify({'success': True, 'project': new_project}), 201
     else:
-        return jsonify({'error': 'Failed to add user'}), 500
+        return jsonify({'error': 'Failed to add project'}), 500
 
 
 @app.route('/api/delete-user', methods=['DELETE'])
